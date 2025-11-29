@@ -27,6 +27,23 @@ WATCHMEN = [
     }
 ]
 
+STUDENT_FIELD_DEFAULTS = {
+    "room": "",
+    "year": "",
+    "student_class": "",
+    "gender": "Male",
+    "dob": None,
+    "address": "",
+    "email": "",
+    "phone": "",
+    "profile_picture": None
+}
+LEGACY_STUDENT_FIELD_MAP = {
+    "room_no": "room",
+    "course": "student_class"
+}
+STRING_STUDENT_FIELDS = {"room", "year", "student_class", "gender", "address", "email", "phone"}
+
 # Initialize files if they don't exist
 for file in [STUDENTS_FILE, LOGS_FILE]:
     if not os.path.exists(file):
@@ -68,6 +85,116 @@ def success_response(message, status_code=200, **payload):
 def error_response(message, code=400):
     return jsonify({"status": "error", "message": message}), code
 
+def normalize_dob(value):
+    if value in (None, "", "null", "None"):
+        return None
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, (int, float)):
+        timestamp = value / 1000 if value > 10**12 else value
+        try:
+            return datetime.fromtimestamp(timestamp).date().isoformat()
+        except (OSError, ValueError):
+            return None
+    if isinstance(value, str):
+        cleaned = value.strip()
+        if not cleaned or cleaned.lower() in {"null", "none"}:
+            return None
+        normalized_input = cleaned.replace("Z", "+00:00") if cleaned.endswith("Z") else cleaned
+        try:
+            return datetime.fromisoformat(normalized_input).date().isoformat()
+        except ValueError:
+            return cleaned
+    return str(value)
+
+def coerce_student_field(field, value):
+    default = STUDENT_FIELD_DEFAULTS[field]
+    if field == "profile_picture":
+        if value is None:
+            return default
+        if isinstance(value, str) and not value.strip():
+            return default
+        return value
+    if field == "dob":
+        return normalize_dob(value)
+    if value is None:
+        return default
+    if isinstance(value, str):
+        cleaned = value.strip()
+        if not cleaned or cleaned.lower() in {"null", "none"}:
+            return default
+        return cleaned if field in STRING_STUDENT_FIELDS else cleaned
+    if field in STRING_STUDENT_FIELDS:
+        return str(value).strip()
+    return value
+
+def normalize_student_record(student):
+    updated = False
+    for legacy_field, new_field in LEGACY_STUDENT_FIELD_MAP.items():
+        if legacy_field in student and new_field not in student:
+            student[new_field] = student.pop(legacy_field)
+            updated = True
+
+    if "register_no" in student and student["register_no"] is not None:
+        normalized_reg = str(student["register_no"]).strip()
+        if normalized_reg != student["register_no"]:
+            student["register_no"] = normalized_reg
+            updated = True
+
+    if "name" in student and isinstance(student["name"], str):
+        normalized_name = student["name"].strip()
+        if normalized_name != student["name"]:
+            student["name"] = normalized_name
+            updated = True
+
+    for field, default in STUDENT_FIELD_DEFAULTS.items():
+        if field not in student:
+            student[field] = default
+            updated = True
+        elif field == "dob":
+            normalized = normalize_dob(student[field])
+            if normalized != student[field]:
+                student[field] = normalized
+                updated = True
+        elif field in STRING_STUDENT_FIELDS and student[field] is None:
+            student[field] = default
+            updated = True
+    return updated
+
+def load_students():
+    students = load_json(STUDENTS_FILE)
+    updated = False
+    for student in students:
+        if normalize_student_record(student):
+            updated = True
+    if updated:
+        save_json(STUDENTS_FILE, students)
+    return students
+
+def create_student_record(data):
+    record = {
+        "name": (data.get("name") or "").strip(),
+    }
+    register_no = data.get("register_no")
+    record["register_no"] = str(register_no).strip() if register_no is not None else None
+    for field in STUDENT_FIELD_DEFAULTS:
+        record[field] = coerce_student_field(field, data.get(field))
+    return record
+
+def update_student_record(student, data):
+    if "name" in data:
+        name = (data.get("name") or "").strip()
+        if name:
+            student["name"] = name
+    if "register_no" in data:
+        register_no = data.get("register_no")
+        if register_no not in (None, ""):
+            student["register_no"] = str(register_no).strip()
+    for field in STUDENT_FIELD_DEFAULTS:
+        if field in data:
+            student[field] = coerce_student_field(field, data.get(field))
+    return student
+
 # ---------------- ADMIN APIs ---------------- #
 @app.route('/login', methods=['POST'])
 def admin_login():
@@ -94,18 +221,20 @@ def admin_logout():
 
 @app.route('/add_student', methods=['POST'])
 def add_student():
-    students = load_json(STUDENTS_FILE)
+    students = load_students()
     data = get_request_data()
 
-    new_student = {
-        "id": next_id(students),
-        "name": data.get("name"),
-        "register_no": str(data.get("register_no")) if data.get("register_no") is not None else None,
-        "room_no": data.get("room_no"),
-        "course": data.get("course"),
-    }
-    if not new_student["name"] or not new_student["register_no"]:
+    name = (data.get("name") or "").strip()
+    raw_register_no = data.get("register_no")
+    register_no = str(raw_register_no).strip() if raw_register_no is not None else None
+
+    if not name or not register_no:
         return error_response("Name and register number are required")
+
+    new_student = create_student_record(data)
+    new_student["id"] = next_id(students)
+    new_student["name"] = name
+    new_student["register_no"] = register_no
 
     students.append(new_student)
     save_json(STUDENTS_FILE, students)
@@ -114,23 +243,20 @@ def add_student():
 
 @app.route('/edit_student/<int:id>', methods=['POST'])
 def edit_student(id):
-    students = load_json(STUDENTS_FILE)
+    students = load_students()
     data = get_request_data()
     for s in students:
         if s["id"] == id:
-            s["name"] = data.get("name", s["name"])
-            register_no = data.get("register_no")
-            if register_no is not None:
-                s["register_no"] = str(register_no)
-            s["room_no"] = data.get("room_no", s["room_no"])
-            s["course"] = data.get("course", s["course"])
+            update_student_record(s, data)
+            if not s["name"] or not s["register_no"]:
+                return error_response("Name and register number are required")
             save_json(STUDENTS_FILE, students)
             return success_response("Student updated", student=s)
     return error_response("Student not found", 404)
 
 @app.route('/delete_student/<int:id>', methods=['DELETE'])
 def delete_student(id):
-    students = load_json(STUDENTS_FILE)
+    students = load_students()
     updated_students = [s for s in students if s["id"] != id]
     if len(updated_students) == len(students):
         return error_response("Student not found", 404)
@@ -139,7 +265,7 @@ def delete_student(id):
 
 @app.route('/students', methods=['GET'])
 def get_students():
-    students = load_json(STUDENTS_FILE)
+    students = load_students()
     return success_response("Students fetched", students=students)
 
 @app.route('/view_logs', methods=['GET'])
@@ -188,7 +314,7 @@ def record_student_movement():
     if movement_type not in {"entry", "exit"}:
         return error_response("movement_type must be 'entry' or 'exit'")
 
-    students = load_json(STUDENTS_FILE)
+    students = load_students()
     student = next((s for s in students if s["id"] == student_id), None)
     if not student:
         return error_response("Student not found", 404)
@@ -237,7 +363,7 @@ def student_login():
     if not name or reg_no is None:
         return error_response("Name and register number are required")
 
-    students = load_json(STUDENTS_FILE)
+    students = load_students()
     for s in students:
         if s["name"].lower() == name.lower() and str(s["register_no"]) == str(reg_no):
             return success_response(

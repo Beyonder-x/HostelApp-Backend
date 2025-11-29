@@ -3,14 +3,42 @@
     "id": 1,
     "name": "Deepu",
     "register_no": "1234",
-    "room_no": null,
-    "course": null
+    "room": "",
+    "year": "",
+    "student_class": "",
+    "gender": "Male",
+    "dob": null,
+    "address": "",
+    "email": "",
+    "phone": "",
+    "profile_picture": null
   },
   {
     "id": 2,
     "name": "Ankit",
     "register_no": "1742",
-    "room_no": null,
-    "course": null
+    "room": "",
+    "year": "",
+    "student_class": "",
+    "gender": "Male",
+    "dob": null,
+    "address": "",
+    "email": "",
+    "phone": "",
+    "profile_picture": null
+  },
+  {
+    "name": "Sarthak",
+    "register_no": "1742001",
+    "room": "9256",
+    "year": "2025",
+    "student_class": "MCA",
+    "gender": "Male",
+    "dob": "2000-04-16",
+    "address": "UP west",
+    "email": "sanky@gmail.com",
+    "phone": "1742001420",
+    "profile_picture": null,
+    "id": 3
   }
 ]
