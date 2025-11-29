@@ -1,102 +1,113 @@
 [
-    {
-        "id": 1,
-        "name": "Alice Johnson",
-        "register_no": "REG2025001",
-        "student_id": 101,
-        "entry_time": "2025-11-12 09:10",
-        "exit_time": "2025-11-12 12:45",
-        "entry_status": "Entered",
-        "exit_status": "Exited"
-    },
-    {
-        "id": 2,
-        "name": "Bob Smith",
-        "register_no": "REG2025002",
-        "student_id": 102,
-        "entry_time": "2025-11-12 09:30",
-        "exit_time": null,
-        "entry_status": "Entered",
-        "exit_status": "Pending"
-    },
-    {
-        "id": 3,
-        "name": "Charlie Kumar",
-        "register_no": "REG2025003",
-        "student_id": 103,
-        "entry_time": "2025-11-12 10:00",
-        "exit_time": "2025-11-12 13:30",
-        "entry_status": "Entered",
-        "exit_status": "Exited"
-    },
-    {
-        "id": 4,
-        "name": "Diana Patel",
-        "register_no": "REG2025004",
-        "student_id": 104,
-        "entry_time": "2025-11-12 10:15",
-        "exit_time": null,
-        "entry_status": "Entered",
-        "exit_status": "Pending"
-    },
-    {
-        "id": 5,
-        "name": "Ethan Verma",
-        "register_no": "REG2025005",
-        "student_id": 105,
-        "entry_time": "2025-11-12 10:45",
-        "exit_time": "2025-11-12 14:10",
-        "entry_status": "Entered",
-        "exit_status": "Exited"
-    },
-    {
-        "id": 6,
-        "name": "Fatima Shaikh",
-        "register_no": "REG2025006",
-        "student_id": 106,
-        "entry_time": "2025-11-12 11:00",
-        "exit_time": null,
-        "entry_status": "Entered",
-        "exit_status": "Pending"
-    },
-    {
-        "id": 7,
-        "name": "George Thomas",
-        "register_no": "REG2025007",
-        "student_id": 107,
-        "entry_time": "2025-11-12 11:20",
-        "exit_time": "2025-11-12 15:00",
-        "entry_status": "Entered",
-        "exit_status": "Exited"
-    },
-    {
-        "id": 8,
-        "name": "Hema Rani",
-        "register_no": "REG2025008",
-        "student_id": 108,
-        "entry_time": "2025-11-12 11:35",
-        "exit_time": null,
-        "entry_status": "Entered",
-        "exit_status": "Pending"
-    },
-    {
-        "id": 9,
-        "name": "Ian Wilson",
-        "register_no": "REG2025009",
-        "student_id": 109,
-        "entry_time": "2025-11-12 12:00",
-        "exit_time": "2025-11-12 15:30",
-        "entry_status": "Entered",
-        "exit_status": "Exited"
-    },
-    {
-        "id": 10,
-        "name": "Jenny Roy",
-        "register_no": "REG2025010",
-        "student_id": 110,
-        "entry_time": "2025-11-12 12:20",
-        "exit_time": null,
-        "entry_status": "Entered",
-        "exit_status": "Pending"
-    }
+  {
+    "id": 1,
+    "name": "Alice Johnson",
+    "register_no": "REG2025001",
+    "student_id": 101,
+    "entry_time": "2025-11-12 09:10",
+    "exit_time": "2025-11-12 12:45",
+    "entry_status": "Entered",
+    "exit_status": "Exited"
+  },
+  {
+    "id": 2,
+    "name": "Bob Smith",
+    "register_no": "REG2025002",
+    "student_id": 102,
+    "entry_time": "2025-11-12 09:30",
+    "exit_time": null,
+    "entry_status": "Entered",
+    "exit_status": "Pending"
+  },
+  {
+    "id": 3,
+    "name": "Charlie Kumar",
+    "register_no": "REG2025003",
+    "student_id": 103,
+    "entry_time": "2025-11-12 10:00",
+    "exit_time": "2025-11-12 13:30",
+    "entry_status": "Entered",
+    "exit_status": "Exited"
+  },
+  {
+    "id": 4,
+    "name": "Diana Patel",
+    "register_no": "REG2025004",
+    "student_id": 104,
+    "entry_time": "2025-11-12 10:15",
+    "exit_time": null,
+    "entry_status": "Entered",
+    "exit_status": "Pending"
+  },
+  {
+    "id": 5,
+    "name": "Ethan Verma",
+    "register_no": "REG2025005",
+    "student_id": 105,
+    "entry_time": "2025-11-12 10:45",
+    "exit_time": "2025-11-12 14:10",
+    "entry_status": "Entered",
+    "exit_status": "Exited"
+  },
+  {
+    "id": 6,
+    "name": "Fatima Shaikh",
+    "register_no": "REG2025006",
+    "student_id": 106,
+    "entry_time": "2025-11-12 11:00",
+    "exit_time": null,
+    "entry_status": "Entered",
+    "exit_status": "Pending"
+  },
+  {
+    "id": 7,
+    "name": "George Thomas",
+    "register_no": "REG2025007",
+    "student_id": 107,
+    "entry_time": "2025-11-12 11:20",
+    "exit_time": "2025-11-12 15:00",
+    "entry_status": "Entered",
+    "exit_status": "Exited"
+  },
+  {
+    "id": 8,
+    "name": "Hema Rani",
+    "register_no": "REG2025008",
+    "student_id": 108,
+    "entry_time": "2025-11-12 11:35",
+    "exit_time": null,
+    "entry_status": "Entered",
+    "exit_status": "Pending"
+  },
+  {
+    "id": 9,
+    "name": "Ian Wilson",
+    "register_no": "REG2025009",
+    "student_id": 109,
+    "entry_time": "2025-11-12 12:00",
+    "exit_time": "2025-11-12 15:30",
+    "entry_status": "Entered",
+    "exit_status": "Exited"
+  },
+  {
+    "id": 10,
+    "name": "Jenny Roy",
+    "register_no": "REG2025010",
+    "student_id": 110,
+    "entry_time": "2025-11-12 12:20",
+    "exit_time": null,
+    "entry_status": "Entered",
+    "exit_status": "Pending"
+  },
+  {
+    "id": 11,
+    "name": "Deepu",
+    "register_no": "1234",
+    "student_id": 1,
+    "entry_time": "2025-11-30 02:23",
+    "exit_time": null,
+    "entry_status": "On Time",
+    "exit_status": "Pending",
+    "remarks": "good boy"
+  }
 ]

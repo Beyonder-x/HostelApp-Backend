@@ -5,5 +5,12 @@
     "register_no": "1234",
     "room_no": null,
     "course": null
+  },
+  {
+    "id": 2,
+    "name": "Ankit",
+    "register_no": "1742",
+    "room_no": null,
+    "course": null
   }
 ]
