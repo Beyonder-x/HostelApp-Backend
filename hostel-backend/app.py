@@ -325,6 +325,20 @@ def watchman_login():
 def watchman_logout():
     return success_response("Watchman logged out")
 
+@app.route('/watchman/record', methods=['POST'])
+def record_student_movement():
+    """Legacy endpoint for frontend compatibility - maps to record-movement"""
+    data = request.get_json() or {}
+    # Map old format to new format
+    movement_type = data.get("movement_type", "").lower()
+    if movement_type == "entry":
+        data["movement_type"] = "IN"
+    elif movement_type == "exit":
+        data["movement_type"] = "OUT"
+    
+    # Call the main record_movement function
+    return record_movement()
+
 @app.route('/watchman/record-movement', methods=['POST'])
 def record_movement():
     if not check_db_connection():
@@ -406,13 +420,59 @@ def watchman_dashboard():
         students_in_hostel = students_col.count_documents({"current_status": "IN_HOSTEL"})
         students_outside = students_col.count_documents({"current_status": "OUTSIDE"})
         
-        today = datetime.now().date().isoformat()
+        # Get today's date range for proper querying
+        today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = today_start + timedelta(days=1)
+        
+        # Query movements for today using proper date range
         today_movements = list(movements_col.find({
-            "timestamp": {"$regex": f"^{today}"}
+            "timestamp": {
+                "$gte": today_start.isoformat(),
+                "$lt": today_end.isoformat()
+            }
         }))
         
-        today_went_out = sum(1 for m in today_movements if m["movement_type"] == "OUT")
-        today_returned = sum(1 for m in today_movements if m["movement_type"] == "IN")
+        today_went_out = sum(1 for m in today_movements if m.get("movement_type") == "OUT")
+        today_returned = sum(1 for m in today_movements if m.get("movement_type") == "IN")
+        
+        return success_response("Dashboard data fetched",
+            total_students=total_students,
+            students_in_hostel=students_in_hostel,
+            students_outside=students_outside,
+            today_went_out=today_went_out,
+            today_returned=today_returned
+        )
+    
+    except PyMongoError as e:
+        return error_response(f"Database error: {str(e)}", 500)
+    except Exception as e:
+        return error_response(f"Unexpected error: {str(e)}", 500)
+
+@app.route('/admin/dashboard', methods=['GET'])
+def admin_dashboard():
+    """Admin dashboard endpoint - same data as watchman dashboard"""
+    if not check_db_connection():
+        return error_response("Database connection unavailable", 503)
+    
+    try:
+        total_students = students_col.count_documents({})
+        students_in_hostel = students_col.count_documents({"current_status": "IN_HOSTEL"})
+        students_outside = students_col.count_documents({"current_status": "OUTSIDE"})
+        
+        # Get today's date range for proper querying
+        today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = today_start + timedelta(days=1)
+        
+        # Query movements for today using proper date range
+        today_movements = list(movements_col.find({
+            "timestamp": {
+                "$gte": today_start.isoformat(),
+                "$lt": today_end.isoformat()
+            }
+        }))
+        
+        today_went_out = sum(1 for m in today_movements if m.get("movement_type") == "OUT")
+        today_returned = sum(1 for m in today_movements if m.get("movement_type") == "IN")
         
         return success_response("Dashboard data fetched",
             total_students=total_students,
@@ -462,6 +522,78 @@ def get_students_outside():
             students=serialize_document(students_outside),
             count=len(students_outside)
         )
+    
+    except PyMongoError as e:
+        return error_response(f"Database error: {str(e)}", 500)
+    except Exception as e:
+        return error_response(f"Unexpected error: {str(e)}", 500)
+
+@app.route('/view_logs', methods=['GET'])
+def view_logs():
+    """Legacy endpoint - converts movements to old log format for frontend compatibility"""
+    if not check_db_connection():
+        return error_response("Database connection unavailable", 503)
+    
+    try:
+        # Get all movements sorted by timestamp
+        movements = list(movements_col.find({}).sort("timestamp", -1))
+        
+        # Convert movements to old log format (entry_time/exit_time pairs)
+        logs = []
+        student_pending_entries = {}  # Track pending entries by student_id
+        
+        for movement in movements:
+            student_id = movement.get("student_id")
+            movement_type = movement.get("movement_type")
+            timestamp = movement.get("timestamp")
+            
+            if movement_type == "OUT":
+                # Create a log entry with entry_time and exit_time
+                # Try to find matching entry or create new
+                if student_id in student_pending_entries:
+                    # Update existing pending entry with exit
+                    log_entry = student_pending_entries[student_id]
+                    log_entry["exit_time"] = timestamp
+                    log_entry["exit_status"] = movement.get("status", "Exited")
+                    logs.append(log_entry)
+                    del student_pending_entries[student_id]
+                else:
+                    # Create new log with only exit (orphaned exit)
+                    log_entry = {
+                        "id": movement.get("id"),
+                        "name": movement.get("student_name", ""),
+                        "register_no": movement.get("register_no", ""),
+                        "student_id": student_id,
+                        "entry_time": None,
+                        "exit_time": timestamp,
+                        "entry_status": "Pending",
+                        "exit_status": movement.get("status", "Exited"),
+                        "remarks": movement.get("remarks", "")
+                    }
+                    logs.append(log_entry)
+            elif movement_type == "IN":
+                # Create pending entry
+                log_entry = {
+                    "id": movement.get("id"),
+                    "name": movement.get("student_name", ""),
+                    "register_no": movement.get("register_no", ""),
+                    "student_id": student_id,
+                    "entry_time": timestamp,
+                    "exit_time": None,
+                    "entry_status": movement.get("status", "Entered"),
+                    "exit_status": "Pending",
+                    "remarks": movement.get("remarks", "")
+                }
+                student_pending_entries[student_id] = log_entry
+        
+        # Add any remaining pending entries (entries without exits)
+        for pending_entry in student_pending_entries.values():
+            logs.append(pending_entry)
+        
+        # Sort by entry_time or exit_time (most recent first)
+        logs.sort(key=lambda x: x.get("exit_time") or x.get("entry_time") or "", reverse=True)
+        
+        return success_response("Logs fetched", logs=serialize_document(logs))
     
     except PyMongoError as e:
         return error_response(f"Database error: {str(e)}", 500)
