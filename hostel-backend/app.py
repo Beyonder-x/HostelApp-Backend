@@ -694,6 +694,86 @@ def my_movements():
     except Exception as e:
         return error_response(f"Unexpected error: {str(e)}", 500)
 
+@app.route('/my_logs', methods=['GET'])
+def my_logs():
+    """Get logs for a specific student in the format expected by frontend"""
+    if not check_db_connection():
+        return error_response("Database connection unavailable", 503)
+    
+    try:
+        student_id = to_int(request.args.get('student_id'))
+        if student_id is None:
+            return error_response("Valid student_id query parameter is required", 400)
+
+        # Verify student exists
+        student = students_col.find_one({"id": student_id})
+        if not student:
+            return error_response("Student not found", 404)
+
+        # Get all movements for this student sorted by timestamp
+        movements = list(movements_col.find({"student_id": student_id}).sort("timestamp", -1))
+        
+        # Convert movements to log format (entry_time/exit_time pairs)
+        logs = []
+        student_pending_entries = {}  # Track pending entries by student_id
+        
+        for movement in movements:
+            movement_type = movement.get("movement_type")
+            timestamp = movement.get("timestamp")
+            
+            if movement_type == "OUT":
+                # Create a log entry with entry_time and exit_time
+                # Try to find matching entry or create new
+                if student_id in student_pending_entries:
+                    # Update existing pending entry with exit
+                    log_entry = student_pending_entries[student_id]
+                    log_entry["exit_time"] = timestamp
+                    log_entry["exit_status"] = movement.get("status", "Exited")
+                    logs.append(log_entry)
+                    del student_pending_entries[student_id]
+                else:
+                    # Create new log with only exit (orphaned exit)
+                    log_entry = {
+                        "id": movement.get("id"),
+                        "name": movement.get("student_name", ""),
+                        "register_no": movement.get("register_no", ""),
+                        "student_id": student_id,
+                        "entry_time": None,
+                        "exit_time": timestamp,
+                        "entry_status": "Pending",
+                        "exit_status": movement.get("status", "Exited"),
+                        "remarks": movement.get("remarks", "")
+                    }
+                    logs.append(log_entry)
+            elif movement_type == "IN":
+                # Create pending entry
+                log_entry = {
+                    "id": movement.get("id"),
+                    "name": movement.get("student_name", ""),
+                    "register_no": movement.get("register_no", ""),
+                    "student_id": student_id,
+                    "entry_time": timestamp,
+                    "exit_time": None,
+                    "entry_status": movement.get("status", "Entered"),
+                    "exit_status": "Pending",
+                    "remarks": movement.get("remarks", "")
+                }
+                student_pending_entries[student_id] = log_entry
+        
+        # Add any remaining pending entries (entries without exits)
+        for pending_entry in student_pending_entries.values():
+            logs.append(pending_entry)
+        
+        # Sort by entry_time or exit_time (most recent first)
+        logs.sort(key=lambda x: x.get("exit_time") or x.get("entry_time") or "", reverse=True)
+        
+        return success_response("Student logs fetched", logs=serialize_document(logs))
+    
+    except PyMongoError as e:
+        return error_response(f"Database error: {str(e)}", 500)
+    except Exception as e:
+        return error_response(f"Unexpected error: {str(e)}", 500)
+
 @app.route('/student/current-status/<int:student_id>', methods=['GET'])
 def get_student_status(student_id):
     if not check_db_connection():
