@@ -487,6 +487,45 @@ def admin_dashboard():
     except Exception as e:
         return error_response(f"Unexpected error: {str(e)}", 500)
 
+@app.route('/student/dashboard', methods=['GET'])
+def student_dashboard():
+    """Student dashboard endpoint - same data as admin/watchman dashboard"""
+    if not check_db_connection():
+        return error_response("Database connection unavailable", 503)
+    
+    try:
+        total_students = students_col.count_documents({})
+        students_in_hostel = students_col.count_documents({"current_status": "IN_HOSTEL"})
+        students_outside = students_col.count_documents({"current_status": "OUTSIDE"})
+        
+        # Get today's date range for proper querying
+        today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = today_start + timedelta(days=1)
+        
+        # Query movements for today using proper date range
+        today_movements = list(movements_col.find({
+            "timestamp": {
+                "$gte": today_start.isoformat(),
+                "$lt": today_end.isoformat()
+            }
+        }))
+        
+        today_went_out = sum(1 for m in today_movements if m.get("movement_type") == "OUT")
+        today_returned = sum(1 for m in today_movements if m.get("movement_type") == "IN")
+        
+        return success_response("Dashboard data fetched",
+            total_students=total_students,
+            students_in_hostel=students_in_hostel,
+            students_outside=students_outside,
+            today_went_out=today_went_out,
+            today_returned=today_returned
+        )
+    
+    except PyMongoError as e:
+        return error_response(f"Database error: {str(e)}", 500)
+    except Exception as e:
+        return error_response(f"Unexpected error: {str(e)}", 500)
+
 @app.route('/watchman/movements', methods=['GET'])
 def get_all_movements():
     if not check_db_connection():
