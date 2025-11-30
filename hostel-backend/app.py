@@ -24,6 +24,7 @@ students_col = None
 movements_col = None
 watchmen_col = None
 settings_col = None
+complaints_col = None
 
 try:
     client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
@@ -34,11 +35,13 @@ try:
     movements_col = db["movements"]
     watchmen_col = db["watchmen"]
     settings_col = db["settings"]
+    complaints_col = db["complaints"]
     
     # Create indexes
     students_col.create_index("register_no", unique=True)
     students_col.create_index("id", unique=True)
     movements_col.create_index([("student_id", 1), ("timestamp", -1)])
+    complaints_col.create_index([("student_id", 1), ("created_at", -1)])
     
     print("✓ Connected to MongoDB Atlas successfully!")
 except (ConnectionFailure, ServerSelectionTimeoutError) as e:
@@ -108,6 +111,12 @@ def get_next_movement_id():
         raise ConnectionError("Database not available")
     last_movement = movements_col.find_one(sort=[("id", -1)])
     return 1 if not last_movement else last_movement.get("id", 0) + 1
+
+def get_next_complaint_id():
+    if not check_db_connection():
+        raise ConnectionError("Database not available")
+    last_complaint = complaints_col.find_one(sort=[("id", -1)])
+    return 1 if not last_complaint else last_complaint.get("id", 0) + 1
 
 def get_request_data():
     if request.is_json:
@@ -791,6 +800,122 @@ def get_student_status(student_id):
             current_status=student.get("current_status", "IN_HOSTEL"),
             last_movement=serialize_document(last_movement)
         )
+    
+    except PyMongoError as e:
+        return error_response(f"Database error: {str(e)}", 500)
+    except Exception as e:
+        return error_response(f"Unexpected error: {str(e)}", 500)
+
+# ---------------- COMPLAINTS APIs ---------------- #
+@app.route('/student/complaint', methods=['POST'])
+def submit_complaint():
+    if not check_db_connection():
+        return error_response("Database connection unavailable", 503)
+    
+    try:
+        data = request.get_json() or {}
+        student_id = to_int(data.get("student_id"))
+        subject = (data.get("subject") or "").strip()
+        description = (data.get("description") or "").strip()
+        
+        if student_id is None:
+            return error_response("student_id is required")
+        
+        if not subject:
+            return error_response("Subject is required")
+        
+        if not description:
+            return error_response("Description is required")
+        
+        # Verify student exists
+        student = students_col.find_one({"id": student_id})
+        if not student:
+            return error_response("Student not found", 404)
+        
+        # Create complaint
+        complaint = {
+            "id": get_next_complaint_id(),
+            "student_id": student_id,
+            "student_name": student.get("name", ""),
+            "register_no": student.get("register_no", ""),
+            "subject": subject,
+            "description": description,
+            "status": "Pending",
+            "created_at": datetime.now().isoformat(),
+            "admin_response": None,
+            "resolved_at": None
+        }
+        
+        complaints_col.insert_one(complaint)
+        return success_response("Complaint submitted successfully", complaint=serialize_document(complaint), status_code=201)
+    
+    except PyMongoError as e:
+        return error_response(f"Database error: {str(e)}", 500)
+    except Exception as e:
+        return error_response(f"Unexpected error: {str(e)}", 500)
+
+@app.route('/student/my-complaints', methods=['GET'])
+def get_my_complaints():
+    if not check_db_connection():
+        return error_response("Database connection unavailable", 503)
+    
+    try:
+        student_id = to_int(request.args.get('student_id'))
+        if student_id is None:
+            return error_response("Valid student_id query parameter is required", 400)
+        
+        complaints = list(complaints_col.find({"student_id": student_id}).sort("created_at", -1))
+        return success_response("Complaints fetched", complaints=serialize_document(complaints))
+    
+    except PyMongoError as e:
+        return error_response(f"Database error: {str(e)}", 500)
+    except Exception as e:
+        return error_response(f"Unexpected error: {str(e)}", 500)
+
+@app.route('/admin/complaints', methods=['GET'])
+def get_all_complaints():
+    if not check_db_connection():
+        return error_response("Database connection unavailable", 503)
+    
+    try:
+        status_filter = request.args.get('status')  # Optional: 'Pending', 'Resolved', etc.
+        query = {}
+        if status_filter:
+            query["status"] = status_filter
+        
+        complaints = list(complaints_col.find(query).sort("created_at", -1))
+        return success_response("Complaints fetched", complaints=serialize_document(complaints))
+    
+    except PyMongoError as e:
+        return error_response(f"Database error: {str(e)}", 500)
+    except Exception as e:
+        return error_response(f"Unexpected error: {str(e)}", 500)
+
+@app.route('/admin/complaint/<int:complaint_id>/resolve', methods=['POST'])
+def resolve_complaint(complaint_id):
+    if not check_db_connection():
+        return error_response("Database connection unavailable", 503)
+    
+    try:
+        data = request.get_json() or {}
+        admin_response = (data.get("admin_response") or "").strip()
+        
+        complaint = complaints_col.find_one({"id": complaint_id})
+        if not complaint:
+            return error_response("Complaint not found", 404)
+        
+        update_fields = {
+            "status": "Resolved",
+            "resolved_at": datetime.now().isoformat()
+        }
+        
+        if admin_response:
+            update_fields["admin_response"] = admin_response
+        
+        complaints_col.update_one({"id": complaint_id}, {"$set": update_fields})
+        
+        updated_complaint = complaints_col.find_one({"id": complaint_id})
+        return success_response("Complaint resolved", complaint=serialize_document(updated_complaint))
     
     except PyMongoError as e:
         return error_response(f"Database error: {str(e)}", 500)
